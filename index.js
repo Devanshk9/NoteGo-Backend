@@ -2,6 +2,7 @@ const express = require('express')
 const cors = require('cors')
 const bp = require('body-parser')
 const myDb = require('./MongoDb')
+const axios = require('axios')
 const App = new express()
 const PORT = 9000
 const PhysicsCyclePdf = require("./PhysicsCyclePdf")
@@ -11,13 +12,30 @@ App.use(cors({origin:"*"}))
 App.use(bp.json())
 App.use(express.urlencoded({ extended: false}))
 
+App.use("/api/PhysicsCycle", PhysicsCyclePdf)
+App.use("/api/ChemistryCycle", ChemistryCyclePdf)
 
-App.use("/api/PhysicsCycle",PhysicsCyclePdf)
-App.use("/api/ChemistryCycle",ChemistryCyclePdf)
+// New route for proxying PDF requests
+App.get('/proxy', async (req, res) => {
+    const url = req.query.url;
+    try {
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            headers: {
+                'Range': req.headers.range
+            }
+        });
+        
+        res.set(response.headers);
+        res.status(response.status);
+        res.send(response.data);
+    } catch (error) {
+        console.error('Error fetching PDF:', error);
+        res.status(500).send('Error fetching PDF');
+    }
+});
 
-
-App.post("/api/GetPhysicsCycleSubjects",async(req,resp)=>{
-
+App.post("/api/GetPhysicsCycleSubjects", async (req, resp) => {
     const PhysicsCycleCollection = myDb.collection("PhysicsCycle")
 
     const SearchedSubject = req.body.SubjectName
@@ -32,9 +50,7 @@ App.post("/api/GetPhysicsCycleSubjects",async(req,resp)=>{
     resp.send(Subjects);
 })
 
-
-App.post("/api/GetChemistryCycleSubjects",async(req,resp)=>{
-
+App.post("/api/GetChemistryCycleSubjects", async (req, resp) => {
     const ChemistryCycleCollection = myDb.collection("ChemistryCycle")
 
     const SearchedSubject = req.body.SubjectName
@@ -50,10 +66,22 @@ App.post("/api/GetChemistryCycleSubjects",async(req,resp)=>{
 })
 
 
-App.listen(PORT,err=>{
+App.post("/api/LabVideos", async (req, resp) => {
 
-    if(err)
+    const LabCollection = myDb.collection("LabVideos")
+
+
+    const Videos = await LabCollection.find({}).toArray();
+
+    console.log("Coming or not")
+    resp.send(Videos);
+})
+
+
+
+App.listen(PORT, err => {
+    if (err)
         console.log(err)
     else
-        console.log("Server Running at port "+PORT)
+        console.log("Server Running at port " + PORT)
 })
